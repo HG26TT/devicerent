@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Inventar System</title>
+
+<style>
+body {
+    font-family: Arial;
+    text-align: center;
+    background: #f4f4f4;
+    margin: 0;
+    padding: 10px;
+}
+
+h1 {
+    font-size: 32px;
+}
+
+input, select {
+    font-size: 20px;
+    padding: 12px;
+    width: 90%;
+    margin: 6px 0;
+    border-radius: 10px;
+    border: 1px solid #ccc;
+}
+
+button {
+    font-size: 20px;
+    padding: 14px;
+    margin: 6px;
+    width: 90%;
+    border: none;
+    border-radius: 10px;
+}
+
+.ausleihe { background: green; color: white; }
+.rueckgabe { background: blue; color: white; }
+.export { background: orange; color: white; }
+.reset { background: grey; color: white; }
+
+.adminbtn { background: black; color: white; }
+
+li {
+    background: white;
+    margin: 8px;
+    padding: 12px;
+    font-size: 16px;
+    border-radius: 10px;
+    text-align: left;
+}
+
+.smallbtn {
+    width: auto;
+    padding: 8px 12px;
+    font-size: 14px;
+    margin-left: 5px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>📦 TT Geräte Ausleihe</h1>
+
+<input id="name" placeholder="Name eingeben">
+
+<select id="geraet"></select>
+
+<button class="ausleihe" onclick="ausleihe()">➕ Ausleihe</button>
+
+<button class="export" onclick="exportCSV()">📤 Export</button>
+<button class="reset" onclick="reset()">♻ Reset</button>
+
+<button class="adminbtn" onclick="login()">🔐 Admin</button>
+
+<h2>Übersicht</h2>
+
+<ul id="liste"></ul>
+
+<script>
+
+// 📦 Gerätebestand
+const geraete = [
+    { name: "Headset", anzahl: 2 },
+    { name: "Maus", anzahl: 2 },
+    { name: "Tastatur", anzahl: 2 }
+];
+
+let daten = [];
+let admin = false;
+
+// 🔄 Laden
+function ladeDaten() {
+    try {
+        daten = JSON.parse(localStorage.getItem("inventar")) || [];
+    } catch (e) {
+        daten = [];
+    }
+}
+
+// 💾 speichern
+function speichern() {
+    try {
+        localStorage.setItem("inventar", JSON.stringify(daten));
+    } catch (e) {
+        alert("Speichern nicht möglich");
+    }
+}
+
+// 📅 Datum
+function datum() {
+    return new Date().toLocaleDateString("de-DE");
+}
+
+// 🔽 Dropdown
+function updateDropdown() {
+    let select = document.getElementById("geraet");
+    select.innerHTML = "";
+
+    geraete.forEach(g => {
+
+        let ausgeliehen = daten.filter(e =>
+            e.geraet === g.name && !e.zurueck
+        ).length;
+
+        let frei = g.anzahl - ausgeliehen;
+
+        let option = document.createElement("option");
+        option.value = g.name;
+
+        option.textContent = frei > 0
+            ? `${g.name} 🟢 (${frei} frei)`
+            : `${g.name} 🔴 (0 frei)`;
+
+        option.disabled = frei <= 0;
+
+        select.appendChild(option);
+    });
+}
+
+// ➕ Ausleihe
+function ausleihe() {
+    let name = document.getElementById("name").value.trim();
+    let g = document.getElementById("geraet").value;
+
+    if (!name) return alert("Name eingeben!");
+    if (!g) return alert("Gerät wählen!");
+
+    daten.push({
+        id: Date.now(),
+        name,
+        geraet: g,
+        aus: datum(),
+        zurueck: ""
+    });
+
+    speichern();
+    updateDropdown();
+    anzeigen();
+}
+
+// 🔄 Rückgabe (pro Eintrag Button!)
+function rueckgabe(id) {
+
+    let eintrag = daten.find(e => e.id === id);
+
+    if (!eintrag) return;
+
+    eintrag.zurueck = datum();
+
+    speichern();
+    updateDropdown();
+    anzeigen();
+}
+
+// 📋 Anzeige
+function anzeigen() {
+    let liste = document.getElementById("liste");
+    liste.innerHTML = "";
+
+    daten.forEach(e => {
+
+        let status = e.zurueck ? "✔ frei" : "⛔ ausgeliehen";
+
+        let li = document.createElement("li");
+
+        li.innerHTML = `
+            <b>${e.name}</b> – ${e.geraet}<br>
+            📅 ${e.aus} → ${e.zurueck || "-"} <br>
+            Status: ${status}
+        `;
+
+        // Rückgabe Button nur wenn ausgeliehen
+        if (!e.zurueck) {
+            let btn = document.createElement("button");
+            btn.textContent = "Rückgabe";
+            btn.className = "smallbtn";
+            btn.onclick = () => rueckgabe(e.id);
+            li.appendChild(btn);
+        }
+
+        liste.appendChild(li);
+    });
+}
+
+// 📤 CSV
+function exportCSV() {
+    let csv = "Name;Gerät;Ausgeliehen;Zurück\n";
+
+    daten.forEach(e => {
+        csv += `${e.name};${e.geraet};${e.aus};${e.zurueck || ""}\n`;
+    });
+
+    let blob = new Blob([csv], { type: "text/csv" });
+    let url = URL.createObjectURL(blob);
+
+    let a = document.createElement("a");
+    a.href = url;
+    a.download = "inventar.csv";
+    a.click();
+
+    URL.revokeObjectURL(url);
+}
+
+// ♻ Reset
+function reset() {
+    let pass = prompt("Admin Passwort:");
+
+    if (pass === "1234") {
+        if (confirm("Alles löschen?")) {
+            daten = [];
+            speichern();
+            updateDropdown();
+            anzeigen();
+        }
+    }
+}
+
+// 🔐 Admin
+function login() {
+    let pass = prompt("Admin Passwort:");
+
+    if (pass === "1234") {
+        admin = true;
+        alert("Admin aktiviert");
+    } else {
+        alert("Falsch");
+    }
+}
+
+// 🚀 Start
+document.addEventListener("DOMContentLoaded", function () {
+    ladeDaten();
+    updateDropdown();
+    anzeigen();
+});
+
+</script>
+
+</body>
+</html>
