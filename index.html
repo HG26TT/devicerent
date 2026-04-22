@@ -1,9 +1,7 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Inventar System</title>
 
 <style>
@@ -11,28 +9,22 @@ body {
     font-family: Arial;
     text-align: center;
     background: #f4f4f4;
-    margin: 0;
-    padding: 10px;
 }
 
-h1 {
-    font-size: 32px;
-}
+h1 { font-size: 38px; }
 
 input, select {
-    font-size: 20px;
-    padding: 12px;
-    width: 90%;
-    margin: 6px 0;
-    border-radius: 10px;
-    border: 1px solid #ccc;
+    font-size: 22px;
+    padding: 10px;
+    width: 60%;
+    margin: 6px;
 }
 
 button {
-    font-size: 20px;
-    padding: 14px;
-    margin: 6px;
-    width: 90%;
+    font-size: 24px;
+    padding: 15px;
+    margin: 8px;
+    width: 220px;
     border: none;
     border-radius: 10px;
 }
@@ -42,172 +34,160 @@ button {
 .export { background: orange; color: white; }
 .reset { background: grey; color: white; }
 
-.adminbtn { background: black; color: white; }
-
 li {
     background: white;
-    margin: 8px;
+    margin: 5px;
     padding: 12px;
-    font-size: 16px;
-    border-radius: 10px;
-    text-align: left;
-}
-
-.smallbtn {
-    width: auto;
-    padding: 8px 12px;
-    font-size: 14px;
-    margin-left: 5px;
+    font-size: 18px;
+    border-radius: 8px;
 }
 </style>
 </head>
 
 <body>
 
-<h1>📦 TT Geräte Ausleihe</h1>
+<h1>TT Geräte Ausleihe</h1>
 
 <input id="name" placeholder="Name eingeben">
 
+<br>
+
 <select id="geraet"></select>
 
-<button class="ausleihe" onclick="ausleihe()">➕ Ausleihe</button>
+<br><br>
 
-<button class="export" onclick="exportCSV()">📤 Export</button>
-<button class="reset" onclick="reset()">♻ Reset</button>
+<button type="button" class="ausleihe" onclick="ausleihe()">Ausleihe</button>
+<button type="button" class="rueckgabe" onclick="rueckgabe()">Rückgabe</button><br>
 
-<button class="adminbtn" onclick="login()">🔐 Admin</button>
+<button type="button" class="export" onclick="exportCSV()">Export</button>
+<button type="button" class="reset" onclick="reset()">Reset</button>
 
 <h2>Übersicht</h2>
 
-<ul id="liste"></ul>
+<button type="button" onclick="login()">Admin Ansicht</button>
+
+<ul id="liste" style="display:none;"></ul>
 
 <script>
 
-// 📦 Gerätebestand
+// 🔹 Bestand
 const geraete = [
     { name: "Headset", anzahl: 2 },
     { name: "Maus", anzahl: 2 },
+    { name: "USB-C Ladekabel ", anzahl: 2 },
     { name: "Tastatur", anzahl: 2 }
 ];
 
-let daten = [];
+let daten = JSON.parse(localStorage.getItem("inventar")) || [];
 let admin = false;
 
-// 🔄 Laden
-function ladeDaten() {
-    try {
-        daten = JSON.parse(localStorage.getItem("inventar")) || [];
-    } catch (e) {
-        daten = [];
-    }
-}
-
-// 💾 speichern
+// speichern
 function speichern() {
-    try {
-        localStorage.setItem("inventar", JSON.stringify(daten));
-    } catch (e) {
-        alert("Speichern nicht möglich");
-    }
+    localStorage.setItem("inventar", JSON.stringify(daten));
 }
 
-// 📅 Datum
+// datum
 function datum() {
     return new Date().toLocaleDateString("de-DE");
+}
+
+// 🔐 LOGIN
+function login() {
+    let pass = prompt("Admin Passwort:");
+
+    if (pass === "1234") {
+        admin = true;
+        document.getElementById("liste").style.display = "block";
+        anzeigen();
+        alert("Admin aktiviert");
+    } else {
+        alert("Falsches Passwort!");
+    }
 }
 
 // 🔽 Dropdown
 function updateDropdown() {
     let select = document.getElementById("geraet");
-    select.innerHTML = "";
+    if (!select) return;
+
+    select.innerHTML = '<option value="">Gerät auswählen</option>';
 
     geraete.forEach(g => {
 
-        let ausgeliehen = daten.filter(e =>
-            e.geraet === g.name && !e.zurueck
-        ).length;
-
+        let ausgeliehen = daten.filter(e => e.geraet === g.name && e.zurueck === "").length;
         let frei = g.anzahl - ausgeliehen;
 
         let option = document.createElement("option");
         option.value = g.name;
 
-        option.textContent = frei > 0
-            ? `${g.name} 🟢 (${frei} frei)`
-            : `${g.name} 🔴 (0 frei)`;
-
-        option.disabled = frei <= 0;
+        if (frei <= 0) {
+            option.textContent = `${g.name} 🔴 (0 frei)`;
+            option.disabled = true;
+        } else {
+            option.textContent = `${g.name} 🟢 (${frei} frei von ${g.anzahl})`;
+        }
 
         select.appendChild(option);
     });
 }
 
-// ➕ Ausleihe
+// 📦 Ausleihe
 function ausleihe() {
     let name = document.getElementById("name").value.trim();
     let g = document.getElementById("geraet").value;
 
     if (!name) return alert("Name eingeben!");
-    if (!g) return alert("Gerät wählen!");
+    if (!g) return alert("Gerät auswählen!");
 
     daten.push({
-        id: Date.now(),
-        name,
+        name: name,
         geraet: g,
         aus: datum(),
         zurueck: ""
     });
 
     speichern();
-    updateDropdown();
     anzeigen();
+    updateDropdown();
 }
 
-// 🔄 Rückgabe (pro Eintrag Button!)
-function rueckgabe(id) {
+// 🔄 Rückgabe
+function rueckgabe() {
+    let g = document.getElementById("geraet").value;
 
-    let eintrag = daten.find(e => e.id === id);
+    if (!g) return alert("Gerät auswählen!");
 
-    if (!eintrag) return;
-
-    eintrag.zurueck = datum();
+    for (let e of daten) {
+        if (e.geraet === g && e.zurueck === "") {
+            e.zurueck = datum();
+            break;
+        }
+    }
 
     speichern();
-    updateDropdown();
     anzeigen();
+    updateDropdown();
 }
 
-// 📋 Anzeige
+// 📋 Anzeige (nur Admin)
 function anzeigen() {
     let liste = document.getElementById("liste");
+    if (!liste) return;
+
     liste.innerHTML = "";
 
-    daten.forEach(e => {
+    if (!admin) return;
 
-        let status = e.zurueck ? "✔ frei" : "⛔ ausgeliehen";
+    daten.forEach(e => {
+        let status = e.zurueck ? "🟢 frei" : "🔴 ausgeliehen";
 
         let li = document.createElement("li");
-
-        li.innerHTML = `
-            <b>${e.name}</b> – ${e.geraet}<br>
-            📅 ${e.aus} → ${e.zurueck || "-"} <br>
-            Status: ${status}
-        `;
-
-        // Rückgabe Button nur wenn ausgeliehen
-        if (!e.zurueck) {
-            let btn = document.createElement("button");
-            btn.textContent = "Rückgabe";
-            btn.className = "smallbtn";
-            btn.onclick = () => rueckgabe(e.id);
-            li.appendChild(btn);
-        }
-
+        li.textContent = `${e.name} | ${e.geraet} | ${e.aus} | ${e.zurueck || "-"} | ${status}`;
         liste.appendChild(li);
     });
 }
 
-// 📤 CSV
+// 📤 CSV Export
 function exportCSV() {
     let csv = "Name;Gerät;Ausgeliehen;Zurück\n";
 
@@ -226,35 +206,25 @@ function exportCSV() {
     URL.revokeObjectURL(url);
 }
 
-// ♻ Reset
+// ♻️ Reset
 function reset() {
-    let pass = prompt("Admin Passwort:");
+    let pass = prompt("Admin Passwort eingeben:");
 
     if (pass === "1234") {
-        if (confirm("Alles löschen?")) {
+        if (confirm("Wirklich ALLES löschen?")) {
             daten = [];
             speichern();
-            updateDropdown();
             anzeigen();
+            updateDropdown();
+            alert("System wurde zurückgesetzt");
         }
-    }
-}
-
-// 🔐 Admin
-function login() {
-    let pass = prompt("Admin Passwort:");
-
-    if (pass === "1234") {
-        admin = true;
-        alert("Admin aktiviert");
     } else {
-        alert("Falsch");
+        alert("Falsches Passwort!");
     }
 }
 
-// 🚀 Start
-document.addEventListener("DOMContentLoaded", function () {
-    ladeDaten();
+// 🚀 iPad-sicherer Start
+window.addEventListener("DOMContentLoaded", () => {
     updateDropdown();
     anzeigen();
 });
