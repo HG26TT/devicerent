@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Inventar System</title>
+
+<style>
+body {
+    font-family: Arial;
+    text-align: center;
+    background: #f4f4f4;
+}
+
+h1 { font-size: 38px; }
+
+input, select {
+    font-size: 22px;
+    padding: 10px;
+    width: 60%;
+    margin: 6px;
+}
+
+button {
+    font-size: 24px;
+    padding: 15px;
+    margin: 8px;
+    width: 220px;
+    border: none;
+    border-radius: 10px;
+}
+
+.ausleihe { background: green; color: white; }
+.rueckgabe { background: blue; color: white; }
+.export { background: orange; color: white; }
+.reset { background: grey; color: white; }
+
+li {
+    background: white;
+    margin: 5px;
+    padding: 12px;
+    font-size: 18px;
+    border-radius: 8px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Self-Service Geräteausleihe</h1>
+
+<!-- 📦 INFOBOX -->
+<div id="infoBox" style="
+    background:#e7f3ff;
+    color:#084298;
+    padding:15px;
+    margin:10px auto;
+    width:70%;
+    border-radius:10px;
+    font-size:18px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.1);
+">
+    📦 <b>Hinweis:</b><br><br>
+    Hier könnt ihr Geräte in Selbstbedienung ausleihen und auch zurückgeben.<br><br>
+    Bitte gebt euren Name ein und wählt ein Gerät aus.
+</div>
+
+<input id="name" placeholder="Name eingeben">
+
+<br>
+
+<select id="geraet"></select>
+
+<br><br>
+
+<button type="button" class="ausleihe" onclick="ausleihe()">Ausleihe</button>
+<button type="button" class="rueckgabe" onclick="rueckgabe()">Rückgabe</button><br>
+
+<button type="button" class="export" onclick="exportCSV()">Export</button>
+<button type="button" class="reset" onclick="reset()">Reset</button>
+
+<h2>Übersicht</h2>
+
+<button type="button" onclick="login()">Admin Ansicht</button>
+
+<ul id="liste" style="display:none;"></ul>
+
+<script>
+
+// 🔹 Bestand
+const geraete = [
+    { name: "Headset", anzahl: 2 },
+    { name: "Maus", anzahl: 2 },
+    { name: "USB-C Ladekabel ", anzahl: 2 },
+    { name: "Tastatur", anzahl: 2 }
+];
+
+let daten = JSON.parse(localStorage.getItem("inventar")) || [];
+let admin = false;
+
+// speichern
+function speichern() {
+    localStorage.setItem("inventar", JSON.stringify(daten));
+}
+
+// datum
+function datum() {
+    return new Date().toLocaleDateString("de-DE");
+}
+
+// 🔐 LOGIN
+function login() {
+    let pass = prompt("Admin Passwort:");
+
+    if (pass === "1234") {
+        admin = true;
+        document.getElementById("liste").style.display = "block";
+        anzeigen();
+        alert("Admin aktiviert");
+    } else {
+        alert("Falsches Passwort!");
+    }
+}
+
+// 🔽 Dropdown
+function updateDropdown() {
+    let select = document.getElementById("geraet");
+    if (!select) return;
+
+    select.innerHTML = '<option value="">Gerät auswählen</option>';
+
+    geraete.forEach(g => {
+
+        let ausgeliehen = daten.filter(e => e.geraet === g.name && e.zurueck === "").length;
+        let frei = g.anzahl - ausgeliehen;
+
+        let option = document.createElement("option");
+        option.value = g.name;
+
+        if (frei <= 0) {
+            option.textContent = `${g.name} 🔴 (0 frei)`;
+            option.disabled = true;
+        } else {
+            option.textContent = `${g.name} 🟢 (${frei} frei von ${g.anzahl})`;
+        }
+
+        select.appendChild(option);
+    });
+}
+
+// 📦 Ausleihe
+function ausleihe() {
+    let name = document.getElementById("name").value.trim();
+    let g = document.getElementById("geraet").value;
+
+    if (!name) return alert("Name eingeben!");
+    if (!g) return alert("Gerät auswählen!");
+
+    daten.push({
+        name: name,
+        geraet: g,
+        aus: datum(),
+        zurueck: ""
+    });
+
+    speichern();
+    anzeigen();
+    updateDropdown();
+}
+
+// 🔄 Rückgabe
+function rueckgabe() {
+    let g = document.getElementById("geraet").value;
+
+    if (!g) return alert("Gerät auswählen!");
+
+    for (let e of daten) {
+        if (e.geraet === g && e.zurueck === "") {
+            e.zurueck = datum();
+            break;
+        }
+    }
+
+    speichern();
+    anzeigen();
+    updateDropdown();
+}
+
+// 📋 Anzeige (nur Admin)
+function anzeigen() {
+    let liste = document.getElementById("liste");
+    if (!liste) return;
+
+    liste.innerHTML = "";
+
+    if (!admin) return;
+
+    daten.forEach(e => {
+        let status = e.zurueck ? "🟢 frei" : "🔴 ausgeliehen";
+
+        let li = document.createElement("li");
+        li.textContent = `${e.name} | ${e.geraet} | ${e.aus} | ${e.zurueck || "-"} | ${status}`;
+        liste.appendChild(li);
+    });
+}
+
+// 📤 CSV Export
+function exportCSV() {
+    let csv = "Name;Gerät;Ausgeliehen;Zurück\n";
+
+    daten.forEach(e => {
+        csv += `${e.name};${e.geraet};${e.aus};${e.zurueck || ""}\n`;
+    });
+
+    let blob = new Blob([csv], { type: "text/csv" });
+    let url = URL.createObjectURL(blob);
+
+    let a = document.createElement("a");
+    a.href = url;
+    a.download = "inventar.csv";
+    a.click();
+
+    URL.revokeObjectURL(url);
+}
+
+// ♻️ Reset
+function reset() {
+    let pass = prompt("Admin Passwort eingeben:");
+
+    if (pass === "1234") {
+        if (confirm("Wirklich ALLES löschen?")) {
+            daten = [];
+            speichern();
+            anzeigen();
+            updateDropdown();
+            alert("System wurde zurückgesetzt");
+        }
+    } else {
+        alert("Falsches Passwort!");
+    }
+}
+
+// 🚀 iPad-sicherer Start
+window.addEventListener("DOMContentLoaded", () => {
+    updateDropdown();
+    anzeigen();
+});
+
+</script>
+
+</body>
+</html>
